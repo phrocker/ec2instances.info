@@ -76,7 +76,7 @@ def get_region_descriptions():
         for partition in endpoints["partitions"]:
             for region in partition["regions"]:
                 # Skip secret and Chinese regions
-                if "us-iso" not in region and not region.startswith("cn-"):
+                if "us-iso" not in region and not region.startswith("cn-") and not region.startswith("ap-"):
                     result[partition["regions"][region]["description"]] = region
     return result
 
@@ -172,13 +172,14 @@ def add_pricing(imap):
             location = canonicalize_location(product_attributes.get("location"))
 
             # Add regions local zones and wavelength zones on the fly as we find them
-            if location not in descriptions:
+            if location not in descriptions:    
                 descriptions[location] = product_attributes.get("regionCode")
 
             region = descriptions[location]
 
             # Skip Chinese regions because they generate incorrect pricing data
-            if region.startswith("cn-"):
+            if not region.startswith("us-east-1"):
+                print(f"Skipping {region}")
                 continue
 
             # Skip capacity block pricing which affects certain p series instances
@@ -417,7 +418,8 @@ def describe_regions():
     ec2_client = boto3.client("ec2", region_name="us-east-1")
     response = ec2_client.describe_regions(AllRegions=True)
     for region in response["Regions"]:
-        yield region["RegionName"]
+        if region["RegionName"] == "us-east-1":
+            yield region["RegionName"]
 
 
 def describe_instance_type_offerings(region_name="us-east-1", location_type="region"):

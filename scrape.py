@@ -1250,27 +1250,28 @@ def add_spot_interrupt_info(instances):
 
     for instance in instances:
         for region in instance.pricing:
-            for _, os_id in os_keys:
-                if (
-                    region in spot_interrupt
-                    and os_id in spot_interrupt[region]
-                    and instance.instance_type in spot_interrupt[region][os_id]
-                    and region in instance.pricing
-                    and os_id in instance.pricing[region]
-                ):
-                    spot_data = spot_interrupt[region][os_id][instance.instance_type]
-                    instance.pricing[region][os_id]["pct_interrupt"] = freq[
-                        spot_data["r"]
-                    ]
-                    instance.pricing[region][os_id]["pct_savings_od"] = spot_data["s"]
+            if region == "us-east-1":
+                for _, os_id in os_keys:
+                    if (
+                        region in spot_interrupt
+                        and os_id in spot_interrupt[region]
+                        and instance.instance_type in spot_interrupt[region][os_id]
+                        and region in instance.pricing
+                        and os_id in instance.pricing[region]
+                    ):
+                        spot_data = spot_interrupt[region][os_id][instance.instance_type]
+                        instance.pricing[region][os_id]["pct_interrupt"] = freq[
+                            spot_data["r"]
+                        ]
+                        instance.pricing[region][os_id]["pct_savings_od"] = spot_data["s"]
 
-                    # convert percent savings to price
-                    est_spot = (
-                        0.01
-                        * (100 - spot_data["s"])
-                        * float(instance.pricing[region][os_id]["ondemand"])
-                    )
-                    instance.pricing[region][os_id]["spot_avg"] = f"{est_spot:.6f}"
+                        # convert percent savings to price
+                        est_spot = (
+                            0.01
+                            * (100 - spot_data["s"])
+                            * float(instance.pricing[region][os_id]["ondemand"])
+                        )
+                        instance.pricing[region][os_id]["spot_avg"] = f"{est_spot:.6f}"
 
 
 def scrape(data_file):
