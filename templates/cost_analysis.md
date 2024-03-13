@@ -1,9 +1,14 @@
-## Overview
-**Name:** {{repo.name}}<br>
-**URL:** {{repo.url}}
+# Cost Analysis Report
 
-| Branch name | Days since last edit |
+## {{repo.name}}
+**Project Description:** {{repo.description}}
+
+| Month | Projected Cost |
 |---|---|
-{% for branch in repo.branches %}
-|{{branch[0]]}}|{{branch[1]}}|
+{% for costs in repo.costs %}
+|{{costs[0]}}|{{costs[1]}}|
 {% endfor %}
+
+
+### Assumptions
+we need to document our assumptions here

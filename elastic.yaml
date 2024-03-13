@@ -1,9 +1,10 @@
+name: Elastic Cost Analysis
 description:
   This is the description of the elastic parser
   and will provide any up front context
 forecast_guidelines:
   cloud_provider: AWS
-  begin_date: 2024-03-01
+  begin_date: 2024-03-13
   forecast:
     month_start: 0
     month_end: 11
@@ -24,7 +25,14 @@ applications:
       # is the throughput bursty?
       bursty: false
     storage:
+      # local nvme
       nvme_required: true
+      initial_storage: 100 GB
+      ## subtract what can be removed
+      daily_growth: 220 GB
+      max_volumes: 10 # not currently used
+      stripe_data: True # stripe across volumes
+      throughput_needed: 500 MB/s
 infrastructure:
   ElasticHotStorage:
     min_deployed: 2
