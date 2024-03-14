@@ -1,14 +1,24 @@
 # Cost Analysis Report
 
 ## {{repo.name}}
-**Project Description:** {{repo.description}}
+**Project Description:** 
+{{repo.description}}
 
-| Month | Projected Cost |
-|---|---|
-{% for costs in repo.costs %}
-|{{costs[0]}}|{{costs[1]}}|
+{% for app in applications %}
+
+| Month | Projected Compute Cost | Projected Storage Cost
+|---|---|---|
+{% for costs in repo[app]['costs'] %}
+|{{costs[0]}}|{{costs[1]}}|{{costs[2]}}|
+{% endfor %}
+
+### Graph of costs
+
+![Graph of Costs]({{images[app]}} "{{app}} costs")
+
+### Forecasting
+{{forecast[app]}}
+
 {% endfor %}
 
 
-### Assumptions
-we need to document our assumptions here

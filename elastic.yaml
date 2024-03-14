@@ -11,6 +11,8 @@ forecast_guidelines:
   forecast:
     month_start: 12
     month_end: 23
+data_tranfer:
+  daily_egress: 2 GB
 
 
 
