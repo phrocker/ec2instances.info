@@ -35,9 +35,40 @@ applications:
       max_volumes: 10 # not currently used
       stripe_data: True # stripe across volumes
       throughput_needed: 500 MB/s
+  ElasticColdStorage:
+    purpose:
+      Elastic Cold Storage
+    cpus_required: 2
+    memory_gb: 8
+    network:
+      daily_gb: 10
+      # is the throughput bursty?
+      bursty: false
+    storage:
+      # local nvme
+      nvme_required: false
+      initial_storage: 100 GB
+      ## subtract what can be removed
+      daily_growth: 10 GB
+      max_volumes: 10 # not currently used
+      stripe_data: True # stripe across volumes
+      throughput_needed: 50 MB/s
 infrastructure:
   ElasticHotStorage:
     min_deployed: 2
+    max_deployed: 16
+    scaling_policy:
+      type: "dynamic"  # Could be 'static', 'dynamic', or 'scheduled'
+      rules:
+        - cpu_utilization_above: 0.80
+          scale_up: 2 # Instances to add
+          cpu_utilization_below: 0.20
+          scale_down: 1 # Instances to remove
+    utilization:
+      average_daily_hours: 10 # Average active hours per day
+      peak_usage_hours: 2 # Hours of peak usage per day
+  ElasticColdStorage:
+    min_deployed: 1
     max_deployed: 16
     scaling_policy:
       type: "dynamic"  # Could be 'static', 'dynamic', or 'scheduled'

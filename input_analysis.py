@@ -146,6 +146,8 @@ class Ec2Pricing(Pricing):
         lowest_price = float('inf')
 
         for instance in self._pricing:
+            if "x86_64" not in instance.get('arch',[]):
+                continue
             if instance['vCPU'] >= desired_cpus and instance['memory'] >= desired_memory_gb:
                 if not requires_nvme or (requires_nvme and (instance['storage'] is not None and instance['storage']['nvme_ssd'])):
                     price = self._get_on_demand_price(instance, region, os_type)
@@ -467,14 +469,19 @@ if __name__ == "__main__":
     report['name'] = cost_analysis.project_name
     report['description'] = cost_analysis.project_description
     report['costs'] = []
-
+    total_cost = {}
     images={}
     forecast = {}
+    dates = None
     for app in monthly_costs_app.keys():
         monthly_costs = monthly_costs_app[app]
         print(f"Total monthly cost: {monthly_costs}")
         df = pd.DataFrame(monthly_costs)
-        
+        if dates is None:
+            dates = []
+            for index, dt in enumerate(monthly_costs['Date']):
+                dates.append(dt)
+                total_cost[dt] = []
         # Convert the 'Date' column to datetime format for better handling
         df['Date'] = pd.to_datetime(df['Date'])
         plt.figure(figsize=(10, 6))  # Set the figure size
@@ -491,18 +498,32 @@ if __name__ == "__main__":
         report[app]['costs'] = []
         forecast[app] = monthly_costs['Details']
         for index, dt in enumerate(monthly_costs['Date']):
+            total_cost[dt].append( [dt, monthly_costs['TotalCost'][index]])
             report[app]['costs'].append( 
                 [dt,
                  float("{:.2f}".format(monthly_costs['ComputeCost'][index])),
                  float("{:.2f}".format(monthly_costs['StorageCost'][index])) ])
     
+    df = pd.DataFrame(monthly_costs)
+        
+        # Convert the 'Date' column to datetime format for better handling
+    df['Date'] = pd.to_datetime(df['Date'])
+    plt.figure(figsize=(10, 6))  # Set the figure size
+    plt.plot(df['Date'], df['TotalCost'], marker='o', linestyle='-', color='b')  # Plot the data
+    plt.title('Daily Costs Over Time')  # Title of the plot
+    plt.xlabel('Date')  # Label for the x-axis
+    plt.ylabel('TotalCost ($)')  # Label for the y-axis
+    plt.xticks(rotation=45)  # Rotate date labels for better readability
+    plt.tight_layout()  # Automatically adjust subplot parameters to give specified padding
+    plt.grid(True)  # Add grid for better readability
+    plt.savefig('total_cost_img.png', dpi=300)  # Save the plot as a PNG file with high resolution
+    total_cost_img = 'total_cost_img.png'
 
-   
 
     #render the template
     with open('./templates/cost_analysis.md', 'r') as file:
         template = Template(file.read(),trim_blocks=True)
-    rendered_file = template.render(repo=report, applications = monthly_costs_app.keys(), monthly_costs=monthly_costs_app, images=images, forecast=forecast)
+    rendered_file = template.render(repo=report, applications = monthly_costs_app.keys(), monthly_costs=monthly_costs_app, images=images, forecast=forecast, total_cost=total_cost)
 
     #output the file
     output_file = codecs.open("report.md", "w", "utf-8")
