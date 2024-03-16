@@ -1,5 +1,6 @@
 invoke
 invocations
+numpy
 boto
 mako
 lxml

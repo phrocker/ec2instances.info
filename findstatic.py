@@ -6,7 +6,7 @@ def load_instance_data(file_path="www/instances.json"):
     return data
 
 def get_on_demand_price(instance, region='us-east-1', os_type='linux'):
-    # Assume instance['pricing'] structure matches your JSON snippet
+    # Assume instance['pricing'] structure matcgrep boto3hes your JSON snippet
     pricing_info = instance.get('pricing', {}).get(region, {}).get(os_type, {}).get('ondemand', None)
     if pricing_info:
         return float(pricing_info)

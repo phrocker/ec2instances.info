@@ -14,11 +14,12 @@ This version of the estimator takes into account on-demand pricing but future ve
 
 ## Complete costs
 
-{% for month in total_cost %}
+Complete Costs account for the summation of all tiers and applications defined, below.
 
-| Month | Total Costs
+| Month | Total Costs |
 |---|---|
-|{{month[0]}}|{{month[1]}}
+{% for month in total_cost %}
+|{{month[0]}}|{{month[1]}}|
 {% endfor %}
 
 
@@ -27,10 +28,10 @@ This version of the estimator takes into account on-demand pricing but future ve
 
 ## Application costs
 
-### Forecasting
-{{forecast[app]}}c
-
 {% for app in applications %}
+
+### Forecasting
+{{forecast[app]}}
 
 ## Projected cost for {{app}}
 

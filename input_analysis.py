@@ -66,16 +66,29 @@ class ApplicationDefinition:
             raise Exception("Definition must be defined")
 
     def get_cpus_required(self) -> int:
-        return self._definition.get('memory_gb', 1)
+        return self._definition.get('cpus_required', 1)
     def get_memory_gb(self) -> int:
         return self._definition.get('memory_gb', 8)
     
     def is_nvme_required(self) -> bool:
         return self._definition.get('storage', {}).get('nvme_required',False)
-    
+
+    def get_local_storage_gb(self) -> int:
+        initial_storage_str = self._definition.get('storage', {}).get('local_storage', '0 GB')
+        initial_storage_gb = int(initial_storage_str.split()[0])  # Assuming format "X GB"
+        if initial_storage_str.split()[1].lower() == "tb":
+            initial_storage_gb = initial_storage_gb*1024
+        return initial_storage_gb
+
+    def is_dedicated_instance(self) -> bool:
+        return self._definition.get('is_dedicated', False)
+
+
     def get_initial_storage_gb(self) -> int:
         initial_storage_str = self._definition.get('storage', {}).get('initial_storage', '0 GB')
         initial_storage_gb = int(initial_storage_str.split()[0])  # Assuming format "X GB"
+        if initial_storage_str.split()[1].lower() == "TB":
+            initial_storage_gb = initial_storage_gb*1024
         return initial_storage_gb
 
     def get_daily_growth_gb(self) -> int:
@@ -119,7 +132,7 @@ class Pricing:
     def get_on_demand_price(self, region : str ,  os_type : str) -> float:
         pass
 
-    def find_lowest_cost_instance(self, desired_cpus : int, desired_memory_gb : int, requires_nvme : bool, region : str, os_type : str) -> float:
+    def find_lowest_cost_instance(self, app_def, desired_cpus : int, desired_memory_gb : int, requires_nvme : bool, region : str, os_type : str) -> float:
         pass
 
     def find_app_def_lowest_cost_instance(self, app_def : ApplicationDefinition):
@@ -134,31 +147,94 @@ class Ec2Pricing(Pricing):
             data = json.load(file)
         return data
     
-    def _get_on_demand_price(self,instance, region='us-east-1', os_type='linux'):
+    def _get_on_demand_price(self,instance, is_dedicated= True, region='us-east-1', os_type='linux'):
         # Assume instance['pricing'] structure matches your JSON snippet
-        pricing_info = instance.get('pricing', {}).get(region, {}).get(os_type, {}).get('ondemand', None)
+        if is_dedicated:
+            dedicated = instance.get('pricing', {}).get(region, {}).get('dedicated', {})
+
+            pricing_info = instance.get('pricing', {}).get(region, {}).get('dedicated', {}).get('ondemand', None)
+            if instance.get('instance_type','') == 'i3.8xlarge':
+                print(f"Dedicated is {dedicated} {pricing_info}")
+        else:
+            if instance.get('instance_type','') == 'i3.8xlarge':
+                print(f"Dedicated2 is {instance.get('pricing', {}).get(region, {})} and {instance.get('pricing', {})}")
+            pricing_info = instance.get('pricing', {}).get(region, {}).get(os_type, {}).get('ondemand', None)
+
+
         if pricing_info:
             return float(pricing_info)
         return None
 
-    def find_lowest_cost_instance(self, desired_cpus, desired_memory_gb, requires_nvme, region='us-east-1', os_type='linux'):
+    def find_lowest_cost_instance(self, app_def, region='us-east-1', os_type='linux'):
         lowest_cost_instance = None
         lowest_price = float('inf')
 
+        desired_cpus = app_def.get_cpus_required()
+        desired_memory_gb = app_def.get_memory_gb()
+        requires_nvme = app_def.is_nvme_required()
+        local_storage_required = app_def.get_local_storage_gb()
+        is_dedicated = app_def.is_dedicated_instance()
         for instance in self._pricing:
             if "x86_64" not in instance.get('arch',[]):
                 continue
             if instance['vCPU'] >= desired_cpus and instance['memory'] >= desired_memory_gb:
-                if not requires_nvme or (requires_nvme and (instance['storage'] is not None and instance['storage']['nvme_ssd'])):
-                    price = self._get_on_demand_price(instance, region, os_type)
+                storage = instance.get('storage',{})
+                if storage is None:
+                    storage = {}
+                instance_type = instance.get('instance_type','')
+
+                matches_nvme = storage.get('nvme_ssd',False)
+
+                if instance.get('instance_type','') == 'i3.8xlarge':
+                    print(f"no price {app_def._definition['purpose']}")
+                    print(f"Instance type is {instance_type} ")
+                    stuff = storage.get('nvme_ssd',False)
+                    print(f"Instance is close {stuff}")
+                ## we want our storage to be local
+                if not requires_nvme or matches_nvme==True:
+
+                    # make sure this instance has enough space
+
+                    num_devices = storage.get('devices',0)
+                    size = storage.get('size',0)
+
+                    total_required = size * num_devices;
+
+                    if local_storage_required > total_required:
+                        if instance.get('instance_type','') == 'i3.8xlarge':
+                            print(f"not enough storage for  {instance.get('instance_type','')} {local_storage_required}  {total_required}")
+                            print(f"*** {size} {num_devices}")
+                        continue
+                    else:
+                        if instance.get('instance_type','') == 'i3.8xlarge':
+                            print(f"enough storage for  {instance.get('instance_type','')} {local_storage_required}  {total_required}")
+                            print(f"*** {size} {num_devices}")
+
+
+
+                    price = self._get_on_demand_price(instance, is_dedicated, region, os_type)
+                    if instance.get('instance_type','') == 'i3.8xlarge':
+                        print(f" price {price}")
                     if price is not None and price < lowest_price:
+                        print(f"lowest price {app_def._definition['purpose']}")
                         lowest_cost_instance = instance
                         lowest_price = price
+                        print(f"{instance.get('instance_type','')} and {matches_nvme} {requires_nvme}")
+                    else:
+                        if instance.get('instance_type','') == 'i3.8xlarge':
+                            print(f"no price {price} {lowest_price} {lowest_cost_instance.get('instance_type')}")
+                else:
+                    if instance.get('instance_type','') == 'i3.8xlarge':
+                        print(f"no price {app_def._definition['purpose']}")
+            else:
+                if instance.get('instance_type','') == 'i3.8xlarge':
+                    print(f"no dsagadsg {app_def._definition['purpose']} {instance['vCPU']} {instance['memory']} {desired_cpus} {desired_memory_gb}")
+
 
         return { "lowest_cost_instance": lowest_cost_instance, "lowest_price": lowest_price}
     
     def find_app_def_lowest_cost_instance(self, app_def : ApplicationDefinition):
-        return self.find_lowest_cost_instance(app_def.get_cpus_required(), app_def.get_memory_gb(), app_def.is_nvme_required())
+        return self.find_lowest_cost_instance(app_def)
 
 class StoragePricingWriteout(Pricing):
     def __init__(self, file_path : str, out_file : str ):
@@ -368,7 +444,7 @@ class CostAnalysis:
             monthly_storage_cost = average_storage_need * price_per_gb_month
             
             monthly_costs['StorageCost'].append(monthly_storage_cost)
-            monthly_costs['TotalCost'].append(monthly_storage_cost+ monthly_cost)
+            monthly_costs['TotalCost'].append(monthly_storage_cost+monthly_cost)
             #({start_date.strftime("%Y-%m"), monthly_cost))
             
             # Update the start_date to the first day of the next month
@@ -440,12 +516,15 @@ class CostAnalysis:
         return monthly_costs
 
     def forecast_monthly_cost(self):
+        print("472")
         daily_pricing = self.get_daily_pricing()
+        print("473")
         forecast = self._calculate_monthly_costs( self._forecaster.get_begin_date(), daily_pricing, 12)        
         for app in forecast.keys():
             vcpu = self._data_loaded['applications'].get(app,{}).get('cpus_required',-1)
             vmem = self._data_loaded['applications'].get(app,{}).get('memory_gb',-1)
             storage_costs = float("{:.2f}".format(sum( forecast[app]['StorageCost'])))
+            print(f"For {app}")
             sku = self._infrastructure.get_best_fit_sku(app,self._pricing).get('instance_type',{})
             forecast[app]['Details'] = f"""This Forecast was generated by searching for SKUs which met the criteria for {app}.
 {app} requested {vcpu} vCPU and {vmem} GB Memory. The lowest cost sku to also meet the storage requirements was {sku}.
@@ -460,16 +539,16 @@ for the 12 month period.
 
 if __name__ == "__main__":
     #storage = StoragePricingWriteout("www/index.json", "www/ebs.json")
-    cost_analysis = CostAnalysis('elastic.yaml', 'www/instances.json', 'www/ebs.json')
-    daily_price = cost_analysis.get_daily_pricing()
-    print(f"Total daily cost: {daily_price}")
+    cost_analysis = CostAnalysis('elastic.yaml', 'costing/instances.json', 'costing/ebs.json')
+    #daily_price = cost_analysis.get_daily_pricing()
+    #print(f"Total daily cost: {daily_price}")
     monthly_costs_app = cost_analysis.forecast_monthly_cost()
     
     report = {}
     report['name'] = cost_analysis.project_name
     report['description'] = cost_analysis.project_description
     report['costs'] = []
-    total_cost = {}
+    total_cost_tabulation = {}
     images={}
     forecast = {}
     dates = None
@@ -481,7 +560,7 @@ if __name__ == "__main__":
             dates = []
             for index, dt in enumerate(monthly_costs['Date']):
                 dates.append(dt)
-                total_cost[dt] = []
+                total_cost_tabulation[dt] = []
         # Convert the 'Date' column to datetime format for better handling
         df['Date'] = pd.to_datetime(df['Date'])
         plt.figure(figsize=(10, 6))  # Set the figure size
@@ -498,14 +577,18 @@ if __name__ == "__main__":
         report[app]['costs'] = []
         forecast[app] = monthly_costs['Details']
         for index, dt in enumerate(monthly_costs['Date']):
-            total_cost[dt].append( [dt, monthly_costs['TotalCost'][index]])
+            total_cost_tabulation[dt].append( monthly_costs['TotalCost'][index])
             report[app]['costs'].append( 
                 [dt,
                  float("{:.2f}".format(monthly_costs['ComputeCost'][index])),
                  float("{:.2f}".format(monthly_costs['StorageCost'][index])) ])
     
     df = pd.DataFrame(monthly_costs)
-        
+    total_cost= []
+    for date in dates:
+        #total_cost_tabulation[date]
+        print(f"Got {total_cost_tabulation[date]}")
+        total_cost.append( [date, int(sum(total_cost_tabulation[date]))])
         # Convert the 'Date' column to datetime format for better handling
     df['Date'] = pd.to_datetime(df['Date'])
     plt.figure(figsize=(10, 6))  # Set the figure size
