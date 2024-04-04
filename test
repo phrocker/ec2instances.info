@@ -9,6 +9,42 @@ Resources:
       EnableDnsSupport: true
       EnableDnsHostnames: true
 
+  EC2SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Access for instances
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+
+  S3AccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: S3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: 's3:*'
+                Resource: '*'
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+      - !Ref S3AccessRole
+
   MyInternetGateway:
     Type: AWS::EC2::InternetGateway
 
@@ -61,22 +97,22 @@ Resources:
   I3Instance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-0abcdef1234567890 # Replace with the actual RHEL 8 AMI ID
-      InstanceType: i3.8xlarge
+      ImageId: ami-0c101f26f147fa7fd # Replace with the actual RHEL 8 AMI ID
+      InstanceType: i3.4xlarge
       IamInstanceProfile: 
         Ref: EC2InstanceProfile
-      SecurityGroups:
-        - Ref: EC2SecurityGroup
+      SecurityGroupIds:
+        - !Ref EC2SecurityGroup
       SubnetId: !Ref MySubnetOne
 
   D3Instance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-0abcdef1234567890 # Replace with the actual S3 accessible OS AMI ID
+      ImageId: ami-0c101f26f147fa7fd # Replace with the actual S3 accessible OS AMI ID
       InstanceType: d3.4xlarge
       IamInstanceProfile: 
         Ref: EC2InstanceProfile
-      SecurityGroups:
-        - Ref: EC2SecurityGroup
+      SecurityGroupIds:
+        - !Ref EC2SecurityGroup
       SubnetId: !Ref MySubnetTwo
 

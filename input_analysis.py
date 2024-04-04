@@ -150,22 +150,29 @@ class Ec2Pricing(Pricing):
     def _get_on_demand_price(self,instance, is_dedicated= True, region='us-east-1', os_type='linux'):
         # Assume instance['pricing'] structure matches your JSON snippet
         if is_dedicated:
-            dedicated = instance.get('pricing', {}).get(region, {}).get('dedicated', {})
-
             pricing_info = instance.get('pricing', {}).get(region, {}).get('dedicated', {}).get('ondemand', None)
-            if instance.get('instance_type','') == 'i3.8xlarge':
-                print(f"Dedicated is {dedicated} {pricing_info}")
         else:
-            if instance.get('instance_type','') == 'i3.8xlarge':
-                print(f"Dedicated2 is {instance.get('pricing', {}).get(region, {})} and {instance.get('pricing', {})}")
             pricing_info = instance.get('pricing', {}).get(region, {}).get(os_type, {}).get('ondemand', None)
 
 
         if pricing_info:
             return float(pricing_info)
         return None
+    
+    def get_reserved(self,instance, is_dedicated= True, type = "yrTerm1Standard.allUpfront", region='us-east-1', os_type='linux'):
+        # Assume instance['pricing'] structure matches your JSON snippet
+        if is_dedicated:
+            pricing_info = instance.get('pricing', {}).get(region, {}).get('dedicated', {}).get('reserved', None).get(type,None)
+        else:
+            pricing_info = instance.get('pricing', {}).get(region, {}).get(os_type, {}).get('ondemand', None).get(type,None)
 
-    def find_lowest_cost_instance(self, app_def, region='us-east-1', os_type='linux'):
+
+        if pricing_info:
+            return float(pricing_info)
+        return None
+
+
+    def find_lowest_cost_instance(self, app_def, price_method , region='us-east-1', os_type='linux'):
         lowest_cost_instance = None
         lowest_price = float('inf')
 
@@ -212,7 +219,7 @@ class Ec2Pricing(Pricing):
 
 
 
-                    price = self._get_on_demand_price(instance, is_dedicated, region, os_type)
+                    price = price_method(instance, is_dedicated, region, os_type)
                     if instance.get('instance_type','') == 'i3.8xlarge':
                         print(f" price {price}")
                     if price is not None and price < lowest_price:
@@ -233,8 +240,14 @@ class Ec2Pricing(Pricing):
 
         return { "lowest_cost_instance": lowest_cost_instance, "lowest_price": lowest_price}
     
-    def find_app_def_lowest_cost_instance(self, app_def : ApplicationDefinition):
-        return self.find_lowest_cost_instance(app_def)
+    def find_app_def_lowest_cost_instance(self, app_def : ApplicationDefinition, instance_type):
+
+        lowest_on_demand = self.find_lowest_cost_instance(app_def, self._get_on_demand_price)
+
+        if instance_type.lower() == "ondemand":
+            return self.find_lowest_cost_instance(app_def, self._get_on_demand_price")
+        else:
+            return self.find_lowest_cost_instance(app_def, self._get_on_demand_price)
 
 class StoragePricingWriteout(Pricing):
     def __init__(self, file_path : str, out_file : str ):
@@ -419,7 +432,7 @@ class CostAnalysis:
         
         price_per_gb_month = volume_type[1]
 
-        monthly_costs = {'Date': [], 'ComputeCost': [], 'StorageCost': [], 'TotalCost' :  []}
+        monthly_costs = {'Date': [], 'OnDemandComputeCost': [], 'StorageCost': [], 'TotalCost' :  []}
         
         for month in range(n_months):
             # Find the first day of the next month
@@ -434,7 +447,7 @@ class CostAnalysis:
             # Calculate the cost for the current month
             monthly_cost = daily_pricing[application] * days_in_month
             monthly_costs['Date'].append(start_date.strftime("%Y-%m"))
-            monthly_costs['ComputeCost'].append(monthly_cost)
+            monthly_costs['OnDemandComputeCost'].append(monthly_cost)
             
             month_index_start = month * 30  # Approximate start day of the month
             month_index_end = min((month + 1) * 30, len(storage_needs))  # Approximate end day of the month
@@ -580,7 +593,7 @@ if __name__ == "__main__":
             total_cost_tabulation[dt].append( monthly_costs['TotalCost'][index])
             report[app]['costs'].append( 
                 [dt,
-                 float("{:.2f}".format(monthly_costs['ComputeCost'][index])),
+                 float("{:.2f}".format(monthly_costs['OnDemandComputeCost'][index])),
                  float("{:.2f}".format(monthly_costs['StorageCost'][index])) ])
     
     df = pd.DataFrame(monthly_costs)
